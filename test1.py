@@ -27,4 +27,7 @@ def add_features(df):
     df['SMA_10'] = df['Close'].rolling(window=10).mean()
     df['SMA_50'] = df['Close'].rolling(window=50).mean()
     df['Volume_Change'] = df['Volume'].pct_change()
-    df['Target'] = (df['Close'].sh
+    df['Target'] = (df['Close'].shift(-1) > df['Close']).astype(int)
+    df.dropna(inplace=True)
+    return df
+
