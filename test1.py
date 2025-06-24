@@ -1,6 +1,7 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
+import plotly.graph_objs as go
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 
@@ -30,7 +31,7 @@ def add_features(df):
     df['Target'] = (df['Close'].shift(-1) > df['Close']).astype(int)
     df.dropna(inplace=True)
     return df
-# Continue after add_features
+
 df = add_features(df)
 
 # Prepare data
@@ -47,21 +48,56 @@ model.fit(X_train, y_train)
 
 # Predict
 predictions = model.predict(X_test)
-
-# Accuracy
 accuracy = (predictions == y_test).mean()
-
-# Show results
-st.subheader(f"Model Accuracy: {accuracy:.2%}")
 
 # Predict next movement
 latest_features = df[features].iloc[-1].values.reshape(1, -1)
 next_prediction = model.predict(latest_features)[0]
-
 movement = "UP 📈" if next_prediction == 1 else "DOWN 📉"
-st.subheader(f"Predicted Next Movement: {movement}")
+
+# Display chart
+st.subheader(f"{ticker} Price Chart with Moving Averages")
+
+fig = go.Figure()
+
+fig.add_trace(go.Candlestick(
+    x=df.index,
+    open=df['Open'],
+    high=df['High'],
+    low=df['Low'],
+    close=df['Close'],
+    name="Candles"
+))
+
+fig.add_trace(go.Scatter(
+    x=df.index,
+    y=df['SMA_10'],
+    mode='lines',
+    name='SMA 10',
+    line=dict(color='orange')
+))
+
+fig.add_trace(go.Scatter(
+    x=df.index,
+    y=df['SMA_50'],
+    mode='lines',
+    name='SMA 50',
+    line=dict(color='blue')
+))
+
+fig.update_layout(
+    xaxis_title="Time",
+    yaxis_title="Price",
+    xaxis_rangeslider_visible=False,
+    height=600
+)
+
+st.plotly_chart(fig, use_container_width=True)
+
+# Show prediction & accuracy
+st.subheader(f"Model Accuracy: {accuracy:.2%}")
+st.subheader(f"Predicted Next Hourly Movement: {movement}")
 
 # Show raw data
 with st.expander("Show raw data"):
     st.dataframe(df)
-
