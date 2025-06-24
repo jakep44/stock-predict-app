@@ -30,4 +30,38 @@ def add_features(df):
     df['Target'] = (df['Close'].shift(-1) > df['Close']).astype(int)
     df.dropna(inplace=True)
     return df
+# Continue after add_features
+df = add_features(df)
+
+# Prepare data
+features = ['Return', 'SMA_10', 'SMA_50', 'Volume_Change']
+X = df[features]
+y = df['Target']
+
+# Train/test split
+X_train, X_test, y_train, y_test = train_test_split(X, y, shuffle=False, test_size=0.2)
+
+# Train model
+model = RandomForestClassifier(n_estimators=100, random_state=42)
+model.fit(X_train, y_train)
+
+# Predict
+predictions = model.predict(X_test)
+
+# Accuracy
+accuracy = (predictions == y_test).mean()
+
+# Show results
+st.subheader(f"Model Accuracy: {accuracy:.2%}")
+
+# Predict next movement
+latest_features = df[features].iloc[-1].values.reshape(1, -1)
+next_prediction = model.predict(latest_features)[0]
+
+movement = "UP 📈" if next_prediction == 1 else "DOWN 📉"
+st.subheader(f"Predicted Next Movement: {movement}")
+
+# Show raw data
+with st.expander("Show raw data"):
+    st.dataframe(df)
 
