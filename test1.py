@@ -36,12 +36,18 @@ def add_features(df):
 
 def compute_rsi(series, window=14):
     delta = series.diff()
-    gain = np.where(delta > 0, delta, 0)
-    loss = np.where(delta < 0, -delta, 0)
-    avg_gain = pd.Series(gain).rolling(window=window).mean()
-    avg_loss = pd.Series(loss).rolling(window=window).mean()
+    gain = np.where(delta > 0, delta, 0).flatten()
+    loss = np.where(delta < 0, -delta, 0).flatten()
+    
+    gain_series = pd.Series(gain, index=series.index)
+    loss_series = pd.Series(loss, index=series.index)
+    
+    avg_gain = gain_series.rolling(window=window).mean()
+    avg_loss = loss_series.rolling(window=window).mean()
+    
     rs = avg_gain / (avg_loss + 1e-10)
     rsi = 100 - (100 / (1 + rs))
+    
     return rsi
 
 df_raw = add_features(df_raw)
