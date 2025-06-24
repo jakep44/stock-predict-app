@@ -23,6 +23,9 @@ def load_data(ticker, period, interval):
 
 df_raw = load_data(ticker, lookback_days, raw_interval)
 
+# Ensure index is datetime for resampling
+df_raw.index = pd.to_datetime(df_raw.index)
+
 # Add features
 def add_features(df):
     df['Return'] = df['Close'].pct_change()
@@ -70,7 +73,7 @@ movement = "UP 📈" if next_prediction == 1 else "DOWN 📉"
 confidence = f"{pred_proba*100:.1f}% Confidence"
 
 # Aggregate to daily for chart
-df_daily = df_raw.resample('1D', on=df_raw.index).agg({
+df_daily = df_raw.resample('1D').agg({
     'Open': 'first',
     'High': 'max',
     'Low': 'min',
