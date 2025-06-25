@@ -148,13 +148,13 @@ else:
 
         # RSI Chart
         st.subheader("Relative Strength Index (RSI)")
-        if 'RSI' in df_raw.columns:
-            st.line_chart(df_raw[['RSI']].dropna())
-        else:
-            st.warning("RSI column not found. Please verify data source.")
 
-        st.subheader(f"Model Accuracy: {(model.predict(X_test) == y_test).mean():.2%}")
-        st.subheader(f"Predicted Next Movement: {movement} with {confidence}")
+# Flatten columns if MultiIndex
+if isinstance(df_raw.columns, pd.MultiIndex):
+    df_raw.columns = [' '.join(map(str, col)).strip() for col in df_raw.columns]
 
-        with st.expander("Show raw data"):
-            st.dataframe(df_raw.tail(100))
+if 'RSI' in df_raw.columns:
+    st.line_chart(df_raw[['RSI']].dropna())
+else:
+    st.warning("RSI column not found. Please verify data source.")
+
