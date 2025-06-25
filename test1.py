@@ -89,72 +89,72 @@ else:
         st.error(f"Couldn't locate 'High' or 'Low' columns in: {df_raw.columns.tolist()}")
     else:
         df_raw['Prev_High'] = df_raw[high_col].shift(1)
-            df_raw['Prev_Low'] = df_raw[low_col].shift(1)
-            df_raw['Sweep_Up'] = (df_raw[high_col] > df_raw['Prev_High'])
-            df_raw['Sweep_Down'] = (df_raw[low_col] < df_raw['Prev_Low'])
-    
-            sweep_up = df_raw[df_raw['Sweep_Up']].tail(5)
-            sweep_down = df_raw[df_raw['Sweep_Down']].tail(5)
+        df_raw['Prev_Low'] = df_raw[low_col].shift(1)
+        df_raw['Sweep_Up'] = (df_raw[high_col] > df_raw['Prev_High'])
+        df_raw['Sweep_Down'] = (df_raw[low_col] < df_raw['Prev_Low'])
+        
+        sweep_up = df_raw[df_raw['Sweep_Up']].tail(5)
+        sweep_down = df_raw[df_raw['Sweep_Down']].tail(5)
 
-    st.subheader(f"{ticker} Live Day Chart with Liquidity Sweeps and Prediction")
-    fig = go.Figure()
+        st.subheader(f"{ticker} Live Day Chart with Liquidity Sweeps and Prediction")
+        fig = go.Figure()
 
-    fig.add_trace(go.Candlestick(
-        x=df_raw.index,
-    open=df_raw['Open'],
-    high=df_raw[high_col],
-    low=df_raw[low_col],
-    close=df_raw['Close'],
-        name="Intraday Candles"
-    ))
+        fig.add_trace(go.Candlestick(
+            x=df_raw.index,
+            open=df_raw['Open'],
+            high=df_raw[high_col],
+            low=df_raw[low_col],
+            close=df_raw['Close'],
+            name="Intraday Candles"
+        ))
 
-    fig.add_trace(go.Scatter(
-        x=sweep_up.index,
-    y=sweep_up[high_col],
-        mode='markers',
-        marker=dict(color='green', size=12, symbol='triangle-up'),
-        name='Liquidity Sweep Up'
-    ))
+        fig.add_trace(go.Scatter(
+            x=sweep_up.index,
+            y=sweep_up[high_col],
+            mode='markers',
+            marker=dict(color='green', size=12, symbol='triangle-up'),
+            name='Liquidity Sweep Up'
+        ))
 
-    fig.add_trace(go.Scatter(
-        x=sweep_down.index,
-    y=sweep_down[low_col],
-        mode='markers',
-        marker=dict(color='red', size=12, symbol='triangle-down'),
-        name='Liquidity Sweep Down'
-    ))
+        fig.add_trace(go.Scatter(
+            x=sweep_down.index,
+            y=sweep_down[low_col],
+            mode='markers',
+            marker=dict(color='red', size=12, symbol='triangle-down'),
+            name='Liquidity Sweep Down'
+        ))
 
-    # Predicted continuation - yellow projected price point
-    future_x = [df_raw.index[-1] + pd.Timedelta(minutes=5)]
-    future_y = [df_raw['Close'].iloc[-1] * (1.01 if next_prediction == 1 else 0.99)]
+        # Predicted continuation - yellow projected price point
+        future_x = [df_raw.index[-1] + pd.Timedelta(minutes=5)]
+        future_y = [df_raw['Close'].iloc[-1] * (1.01 if next_prediction == 1 else 0.99)]
 
-    fig.add_trace(go.Scatter(
-        x=future_x,
-        y=future_y,
-        mode='markers+lines',
-        line=dict(color='yellow', dash='dot'),
-        marker=dict(size=14, color='yellow'),
-        name=f'Predicted Continuation ({movement})'
-    ))
+        fig.add_trace(go.Scatter(
+            x=future_x,
+            y=future_y,
+            mode='markers+lines',
+            line=dict(color='yellow', dash='dot'),
+            marker=dict(size=14, color='yellow'),
+            name=f'Predicted Continuation ({movement})'
+        ))
 
-    fig.update_layout(
-        xaxis_title="Time",
-        yaxis_title="Price",
-        xaxis_rangeslider_visible=False,
-        height=600
-    )
+        fig.update_layout(
+            xaxis_title="Time",
+            yaxis_title="Price",
+            xaxis_rangeslider_visible=False,
+            height=600
+        )
 
-    st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True)
 
-    # RSI Chart
-    st.subheader("Relative Strength Index (RSI)")
-    if 'RSI' in df_raw.columns:
-        st.line_chart(df_raw[['RSI']].dropna())
-    else:
-        st.warning("RSI column not found. Please verify data source.")
+        # RSI Chart
+        st.subheader("Relative Strength Index (RSI)")
+        if 'RSI' in df_raw.columns:
+            st.line_chart(df_raw[['RSI']].dropna())
+        else:
+            st.warning("RSI column not found. Please verify data source.")
 
-    st.subheader(f"Model Accuracy: {(model.predict(X_test) == y_test).mean():.2%}")
-    st.subheader(f"Predicted Next Movement: {movement} with {confidence}")
+        st.subheader(f"Model Accuracy: {(model.predict(X_test) == y_test).mean():.2%}")
+        st.subheader(f"Predicted Next Movement: {movement} with {confidence}")
 
-    with st.expander("Show raw data"):
-        st.dataframe(df_raw.tail(100))
+        with st.expander("Show raw data"):
+            st.dataframe(df_raw.tail(100))
