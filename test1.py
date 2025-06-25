@@ -88,13 +88,13 @@ else:
     if not high_col or not low_col:
         st.error(f"Couldn't locate 'High' or 'Low' columns in: {df_raw.columns.tolist()}")
     else:
-    df_raw['Prev_High'] = df_raw[high_col].shift(1)
-    df_raw['Prev_Low'] = df_raw[low_col].shift(1)
-    df_raw['Sweep_Up'] = (df_raw[high_col] > df_raw['Prev_High'])
-    df_raw['Sweep_Down'] = (df_raw[low_col] < df_raw['Prev_Low'])
+        df_raw['Prev_High'] = df_raw[high_col].shift(1)
+            df_raw['Prev_Low'] = df_raw[low_col].shift(1)
+            df_raw['Sweep_Up'] = (df_raw[high_col] > df_raw['Prev_High'])
+            df_raw['Sweep_Down'] = (df_raw[low_col] < df_raw['Prev_Low'])
     
-    sweep_up = df_raw[df_raw['Sweep_Up']].tail(5)
-    sweep_down = df_raw[df_raw['Sweep_Down']].tail(5)
+            sweep_up = df_raw[df_raw['Sweep_Up']].tail(5)
+            sweep_down = df_raw[df_raw['Sweep_Down']].tail(5)
 
     st.subheader(f"{ticker} Live Day Chart with Liquidity Sweeps and Prediction")
     fig = go.Figure()
