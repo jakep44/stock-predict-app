@@ -7,14 +7,14 @@ from sklearn.model_selection import train_test_split
 import numpy as np
 
 st.set_page_config(layout="wide")
-st.title("📈 PredictTick – Stock Movement with Advanced Liquidity Sweeps")
+st.title("📈 PredictTick – Real-Time Day Chart with Liquidity Sweeps and Prediction")
 
 # Sidebar input
 ticker = st.sidebar.text_input("Enter stock ticker (e.g. AAPL, TSLA)", "AAPL")
-raw_interval = st.sidebar.selectbox("Raw Data Interval", ["30m", "1h"], index=1)
-lookback_days = st.sidebar.selectbox("How many days of raw data", ["30d", "60d", "90d"], index=1)
+raw_interval = st.sidebar.selectbox("Raw Data Interval", ["1m", "5m", "15m"], index=1)
+lookback_days = st.sidebar.selectbox("How many days of raw data", ["1d"], index=0)
 
-# Load raw high-res data
+# Load raw intraday data
 @st.cache_data
 def load_data(ticker, period, interval):
     data = yf.download(ticker, period=period, interval=interval)
@@ -22,14 +22,8 @@ def load_data(ticker, period, interval):
     return data
 
 df_raw = load_data(ticker, lookback_days, raw_interval)
-
-# Ensure index is datetime for resampling
 df_raw.index = pd.to_datetime(df_raw.index)
-
-# Flatten multi-level columns if needed
 df_raw.columns = [' '.join(col).strip() if isinstance(col, tuple) else col for col in df_raw.columns]
-
-st.write("Available columns:", df_raw.columns.tolist())
 
 # Add features
 def add_features(df):
@@ -53,16 +47,12 @@ def compute_rsi(series, window=14):
     delta = series.diff()
     gain = np.where(delta > 0, delta, 0).flatten()
     loss = np.where(delta < 0, -delta, 0).flatten()
-
     gain_series = pd.Series(gain, index=series.index)
     loss_series = pd.Series(loss, index=series.index)
-
     avg_gain = gain_series.rolling(window=window).mean()
     avg_loss = loss_series.rolling(window=window).mean()
-
     rs = avg_gain / (avg_loss + 1e-10)
     rsi = 100 - (100 / (1 + rs))
-
     return rsi
 
 df_raw = add_features(df_raw)
@@ -76,101 +66,78 @@ if len(X) < 10:
     st.error("Not enough data to train the model. Try selecting a longer time period or different interval.")
 else:
     X_train, X_test, y_train, y_test = train_test_split(X, y, shuffle=False, test_size=0.2)
-
     model = RandomForestClassifier(n_estimators=100, random_state=42)
     model.fit(X_train, y_train)
 
-    # Predict next move
     latest_features = X.iloc[-1].values.reshape(1, -1)
     next_prediction = model.predict(latest_features)[0]
     pred_proba = model.predict_proba(latest_features)[0][1]
     movement = "UP 📈" if next_prediction == 1 else "DOWN 📉"
     confidence = f"{pred_proba*100:.1f}% Confidence"
 
-    # Aggregate to daily for chart
-    col_map = {}
-    for name in ['Open', 'High', 'Low', 'Close', 'Volume']:
-        col_found = next((col for col in df_raw.columns if name in col), None)
-        if col_found:
-            col_map[name] = col_found
+    # Liquidity sweeps based on intraday highs/lows
+    df_raw['Prev_High'] = df_raw['High'].shift(1)
+    df_raw['Prev_Low'] = df_raw['Low'].shift(1)
+    df_raw['Sweep_Up'] = (df_raw['High'] > df_raw['Prev_High'])
+    df_raw['Sweep_Down'] = (df_raw['Low'] < df_raw['Prev_Low'])
 
-    if len(col_map) < 5:
-        st.error(f"Missing columns for resampling: {col_map}")
-    else:
-        df_daily = df_raw.resample('1D').agg({
-            col_map['Open']: 'first',
-            col_map['High']: 'max',
-            col_map['Low']: 'min',
-            col_map['Close']: 'last',
-            col_map['Volume']: 'sum'
-        })
-        df_daily.columns = ['Open', 'High', 'Low', 'Close', 'Volume']
-        df_daily.dropna(inplace=True)
+    sweep_up = df_raw[df_raw['Sweep_Up']].tail(5)
+    sweep_down = df_raw[df_raw['Sweep_Down']].tail(5)
 
-        # Detect liquidity sweeps
-        df_daily['Prev_High'] = df_daily['High'].shift(1)
-        df_daily['Prev_Low'] = df_daily['Low'].shift(1)
-        df_daily['Sweep_Up'] = (df_daily['High'] > df_daily['Prev_High'])
-        df_daily['Sweep_Down'] = (df_daily['Low'] < df_daily['Prev_Low'])
+    st.subheader(f"{ticker} Live Day Chart with Liquidity Sweeps and Prediction")
+    fig = go.Figure()
 
-        sweep_up = df_daily[df_daily['Sweep_Up']].tail(5)
-        sweep_down = df_daily[df_daily['Sweep_Down']].tail(5)
+    fig.add_trace(go.Candlestick(
+        x=df_raw.index,
+        open=df_raw['Open'],
+        high=df_raw['High'],
+        low=df_raw['Low'],
+        close=df_raw['Close'],
+        name="Intraday Candles"
+    ))
 
-        # Price chart
-        st.subheader(f"{ticker} 1-Day Price Chart with Liquidity Sweeps")
-        fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=sweep_up.index,
+        y=sweep_up['High'],
+        mode='markers',
+        marker=dict(color='green', size=12, symbol='triangle-up'),
+        name='Liquidity Sweep Up'
+    ))
 
-        fig.add_trace(go.Candlestick(
-            x=df_daily.index,
-            open=df_daily['Open'],
-            high=df_daily['High'],
-            low=df_daily['Low'],
-            close=df_daily['Close'],
-            name="Daily Candles"
-        ))
+    fig.add_trace(go.Scatter(
+        x=sweep_down.index,
+        y=sweep_down['Low'],
+        mode='markers',
+        marker=dict(color='red', size=12, symbol='triangle-down'),
+        name='Liquidity Sweep Down'
+    ))
 
-        fig.add_trace(go.Scatter(
-            x=sweep_up.index,
-            y=sweep_up['High'],
-            mode='markers',
-            marker=dict(color='green', size=12, symbol='triangle-up'),
-            name='Liquidity Sweep Up'
-        ))
+    # Predicted continuation - yellow projected price point
+    future_x = [df_raw.index[-1] + pd.Timedelta(minutes=5)]
+    future_y = [df_raw['Close'].iloc[-1] * (1.005 if next_prediction == 1 else 0.995)]
 
-        fig.add_trace(go.Scatter(
-            x=sweep_down.index,
-            y=sweep_down['Low'],
-            mode='markers',
-            marker=dict(color='red', size=12, symbol='triangle-down'),
-            name='Liquidity Sweep Down'
-        ))
+    fig.add_trace(go.Scatter(
+        x=future_x,
+        y=future_y,
+        mode='markers+lines',
+        line=dict(color='yellow', dash='dot'),
+        marker=dict(size=14, color='yellow'),
+        name=f'Predicted Continuation ({movement})'
+    ))
 
-        future_x = [df_daily.index[-1] + pd.Timedelta(days=1)]
-        future_y = [df_daily['Close'].iloc[-1] * (1.01 if next_prediction == 1 else 0.99)]
+    fig.update_layout(
+        xaxis_title="Time",
+        yaxis_title="Price",
+        xaxis_rangeslider_visible=False,
+        height=600
+    )
 
-        fig.add_trace(go.Scatter(
-            x=future_x,
-            y=future_y,
-            mode='lines+markers',
-            line=dict(color='blue', dash='dot'),
-            marker=dict(size=14),
-            name=f'Predicted Move ({movement})'
-        ))
-
-        fig.update_layout(
-            xaxis_title="Date",
-            yaxis_title="Price",
-            xaxis_rangeslider_visible=False,
-            height=600
-        )
-
-        st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True)
 
     # RSI Chart
     st.subheader("Relative Strength Index (RSI)")
     st.line_chart(df_raw[['RSI']].dropna())
 
-    # Show results
     st.subheader(f"Model Accuracy: {(model.predict(X_test) == y_test).mean():.2%}")
     st.subheader(f"Predicted Next Movement: {movement} with {confidence}")
 
