@@ -82,10 +82,10 @@ else:
     confidence = f"{pred_proba*100:.1f}% Confidence"
 
     # Liquidity sweeps based on intraday highs/lows
-    high_col = next((col for col in df_raw.columns if 'High' in col), None)
-low_col = next((col for col in df_raw.columns if 'Low' in col), None)
+        high_col = next((col for col in df_raw.columns if 'High' in col), None)
+    low_col = next((col for col in df_raw.columns if 'Low' in col), None)
 
-if not high_col or not low_col:
+    if not high_col or not low_col:
     st.error(f"Couldn't locate 'High' or 'Low' columns in: {df_raw.columns.tolist()}")
 else:
     df_raw['Prev_High'] = df_raw[high_col].shift(1)
@@ -148,7 +148,10 @@ else:
 
     # RSI Chart
     st.subheader("Relative Strength Index (RSI)")
-    st.line_chart(df_raw[['RSI']].dropna())
+    if 'RSI' in df_raw.columns:
+        st.line_chart(df_raw[['RSI']].dropna())
+    else:
+        st.warning("RSI column not found. Please verify data source.")
 
     st.subheader(f"Model Accuracy: {(model.predict(X_test) == y_test).mean():.2%}")
     st.subheader(f"Predicted Next Movement: {movement} with {confidence}")
