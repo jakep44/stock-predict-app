@@ -12,7 +12,7 @@ st.title("📈 PredictTick – Real-Time Day Chart with Liquidity Sweeps and Pre
 # Sidebar input
 ticker = st.sidebar.text_input("Enter stock ticker (e.g. AAPL, TSLA)", "AAPL")
 raw_interval = st.sidebar.selectbox("Raw Data Interval", ["1m", "5m", "15m"], index=1)
-lookback_days = st.sidebar.selectbox("How many days of raw data", ["1d"], index=0)
+lookback_days = st.sidebar.selectbox("How many days of raw data", ["1d", "5d", "10d", "30d"], index=3)
 
 # Load raw intraday data
 @st.cache_data
