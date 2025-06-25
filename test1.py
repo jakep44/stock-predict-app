@@ -28,7 +28,7 @@ st.write("Raw Data Columns:", df_raw.columns.tolist())
 
 # Standardize columns if possible
 expected_cols = ['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']
-mapping = {col: col.split()[-1] for col in df_raw.columns if any(key in col for key in expected_cols)}
+mapping = {col: str(col).split()[-1] for col in df_raw.columns if any(key in str(col) for key in expected_cols)}
 df_raw.rename(columns=mapping, inplace=True)
 
 # Add features
@@ -86,11 +86,13 @@ else:
 low_col = next((col for col in df_raw.columns if 'Low' in col), None)
 
 if not high_col or not low_col:
-    st.er
-    df_raw['Prev_Low'] = df_raw['Low'].shift(1)
-    df_raw['Sweep_Up'] = (df_raw['High'] > df_raw['Prev_High'])
-    df_raw['Sweep_Down'] = (df_raw['Low'] < df_raw['Prev_Low'])
-
+    st.error(f"Couldn't locate 'High' or 'Low' columns in: {df_raw.columns.tolist()}")
+else:
+    df_raw['Prev_High'] = df_raw[high_col].shift(1)
+    df_raw['Prev_Low'] = df_raw[low_col].shift(1)
+    df_raw['Sweep_Up'] = (df_raw[high_col] > df_raw['Prev_High'])
+    df_raw['Sweep_Down'] = (df_raw[low_col] < df_raw['Prev_Low'])
+    
     sweep_up = df_raw[df_raw['Sweep_Up']].tail(5)
     sweep_down = df_raw[df_raw['Sweep_Down']].tail(5)
 
@@ -99,16 +101,16 @@ if not high_col or not low_col:
 
     fig.add_trace(go.Candlestick(
         x=df_raw.index,
-        open=df_raw['Open'],
-        high=df_raw['High'],
-        low=df_raw['Low'],
-        close=df_raw['Close'],
+    open=df_raw['Open'],
+    high=df_raw[high_col],
+    low=df_raw[low_col],
+    close=df_raw['Close'],
         name="Intraday Candles"
     ))
 
     fig.add_trace(go.Scatter(
         x=sweep_up.index,
-        y=sweep_up['High'],
+    y=sweep_up[high_col],
         mode='markers',
         marker=dict(color='green', size=12, symbol='triangle-up'),
         name='Liquidity Sweep Up'
@@ -116,7 +118,7 @@ if not high_col or not low_col:
 
     fig.add_trace(go.Scatter(
         x=sweep_down.index,
-        y=sweep_down['Low'],
+    y=sweep_down[low_col],
         mode='markers',
         marker=dict(color='red', size=12, symbol='triangle-down'),
         name='Liquidity Sweep Down'
@@ -124,7 +126,7 @@ if not high_col or not low_col:
 
     # Predicted continuation - yellow projected price point
     future_x = [df_raw.index[-1] + pd.Timedelta(minutes=5)]
-    future_y = [df_raw['Close'].iloc[-1] * (1.005 if next_prediction == 1 else 0.995)]
+    future_y = [df_raw['Close'].iloc[-1] * (1.01 if next_prediction == 1 else 0.99)]
 
     fig.add_trace(go.Scatter(
         x=future_x,
