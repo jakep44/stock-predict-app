@@ -82,12 +82,12 @@ else:
     confidence = f"{pred_proba*100:.1f}% Confidence"
 
     # Liquidity sweeps based on intraday highs/lows
-        high_col = next((col for col in df_raw.columns if 'High' in col), None)
+    high_col = next((col for col in df_raw.columns if 'High' in col), None)
     low_col = next((col for col in df_raw.columns if 'Low' in col), None)
 
     if not high_col or not low_col:
-    st.error(f"Couldn't locate 'High' or 'Low' columns in: {df_raw.columns.tolist()}")
-else:
+        st.error(f"Couldn't locate 'High' or 'Low' columns in: {df_raw.columns.tolist()}")
+    else:
     df_raw['Prev_High'] = df_raw[high_col].shift(1)
     df_raw['Prev_Low'] = df_raw[low_col].shift(1)
     df_raw['Sweep_Up'] = (df_raw[high_col] > df_raw['Prev_High'])
