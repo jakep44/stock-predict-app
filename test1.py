@@ -30,17 +30,24 @@ df_raw.index = pd.to_datetime(df_raw.index)
 if isinstance(df_raw.columns, pd.MultiIndex):
     df_raw.columns = [' '.join(col).strip() for col in df_raw.columns.values]
 
-# Show columns for debugging
-st.write("Columns available:", df_raw.columns.tolist())
+st.write("Available columns after flattening:", df_raw.columns.tolist())
 
 # Add features
 def add_features(df):
-    df['Return'] = df['Close'].pct_change()
-    df['SMA_10'] = df['Close'].rolling(window=10).mean()
-    df['SMA_50'] = df['Close'].rolling(window=50).mean()
-    df['Volume_Change'] = df['Volume'].pct_change()
-    df['RSI'] = compute_rsi(df['Close'], window=14)
-    df['Target'] = (df['Close'].shift(-1) > df['Close']).astype(int)
+    # Find correct 'Close' and 'Volume' columns
+    close_col = next((col for col in df.columns if 'Close' in col), None)
+    volume_col = next((col for col in df.columns if 'Volume' in col), None)
+
+    if not close_col or not volume_col:
+        st.error(f"Couldn't locate 'Close' or 'Volume' columns in: {df.columns.tolist()}")
+        return df
+
+    df['Return'] = df[close_col].pct_change()
+    df['SMA_10'] = df[close_col].rolling(window=10).mean()
+    df['SMA_50'] = df[close_col].rolling(window=50).mean()
+    df['Volume_Change'] = df[volume_col].pct_change()
+    df['RSI'] = compute_rsi(df[close_col], window=14)
+    df['Target'] = (df[close_col].shift(-1) > df[close_col]).astype(int)
     df.dropna(inplace=True)
     return df
 
@@ -80,19 +87,27 @@ movement = "UP 📈" if next_prediction == 1 else "DOWN 📉"
 confidence = f"{pred_proba*100:.1f}% Confidence"
 
 # Aggregate to daily for chart
-required_cols = ['Open', 'High', 'Low', 'Close', 'Volume']
-missing = [col for col in required_cols if col not in df_raw.columns]
+required_cols = [col for col in df_raw.columns if any(x in col for x in ['Open', 'High', 'Low', 'Close', 'Volume'])]
 
-if missing:
-    st.error(f"Missing columns for resampling: {missing}")
+# Extract proper columns for resample
+col_map = {}
+for name in ['Open', 'High', 'Low', 'Close', 'Volume']:
+    col_found = next((col for col in df_raw.columns if name in col), None)
+    if col_found:
+        col_map[name] = col_found
+
+if len(col_map) < 5:
+    st.error(f"Missing columns for resampling: {col_map}")
 else:
     df_daily = df_raw.resample('1D').agg({
-        'Open': 'first',
-        'High': 'max',
-        'Low': 'min',
-        'Close': 'last',
-        'Volume': 'sum'
-    }).dropna()
+        col_map['Open']: 'first',
+        col_map['High']: 'max',
+        col_map['Low']: 'min',
+        col_map['Close']: 'last',
+        col_map['Volume']: 'sum'
+    })
+    df_daily.columns = ['Open', 'High', 'Low', 'Close', 'Volume']
+    df_daily.dropna(inplace=True)
 
     # Detect liquidity sweeps (mark last 5 occurrences)
     df_daily['Prev_High'] = df_daily['High'].shift(1)
