@@ -26,6 +26,13 @@ df_raw = load_data(ticker, lookback_days, raw_interval)
 # Ensure index is datetime for resampling
 df_raw.index = pd.to_datetime(df_raw.index)
 
+# Flatten multi-level columns if needed (yfinance sometimes does this)
+if isinstance(df_raw.columns, pd.MultiIndex):
+    df_raw.columns = [' '.join(col).strip() for col in df_raw.columns.values]
+
+# Show columns for debugging
+st.write("Columns available:", df_raw.columns.tolist())
+
 # Add features
 def add_features(df):
     df['Return'] = df['Close'].pct_change()
@@ -41,16 +48,16 @@ def compute_rsi(series, window=14):
     delta = series.diff()
     gain = np.where(delta > 0, delta, 0).flatten()
     loss = np.where(delta < 0, -delta, 0).flatten()
-    
+
     gain_series = pd.Series(gain, index=series.index)
     loss_series = pd.Series(loss, index=series.index)
-    
+
     avg_gain = gain_series.rolling(window=window).mean()
     avg_loss = loss_series.rolling(window=window).mean()
-    
+
     rs = avg_gain / (avg_loss + 1e-10)
     rsi = 100 - (100 / (1 + rs))
-    
+
     return rsi
 
 df_raw = add_features(df_raw)
@@ -73,73 +80,79 @@ movement = "UP 📈" if next_prediction == 1 else "DOWN 📉"
 confidence = f"{pred_proba*100:.1f}% Confidence"
 
 # Aggregate to daily for chart
-df_daily = df_raw.resample('1D').agg({
-    'Open': 'first',
-    'High': 'max',
-    'Low': 'min',
-    'Close': 'last',
-    'Volume': 'sum'
-}).dropna()
+required_cols = ['Open', 'High', 'Low', 'Close', 'Volume']
+missing = [col for col in required_cols if col not in df_raw.columns]
 
-# Detect liquidity sweeps (mark last 5 occurrences)
-df_daily['Prev_High'] = df_daily['High'].shift(1)
-df_daily['Prev_Low'] = df_daily['Low'].shift(1)
-df_daily['Sweep_Up'] = (df_daily['High'] > df_daily['Prev_High'])
-df_daily['Sweep_Down'] = (df_daily['Low'] < df_daily['Prev_Low'])
+if missing:
+    st.error(f"Missing columns for resampling: {missing}")
+else:
+    df_daily = df_raw.resample('1D').agg({
+        'Open': 'first',
+        'High': 'max',
+        'Low': 'min',
+        'Close': 'last',
+        'Volume': 'sum'
+    }).dropna()
 
-sweep_up = df_daily[df_daily['Sweep_Up']].tail(5)
-sweep_down = df_daily[df_daily['Sweep_Down']].tail(5)
+    # Detect liquidity sweeps (mark last 5 occurrences)
+    df_daily['Prev_High'] = df_daily['High'].shift(1)
+    df_daily['Prev_Low'] = df_daily['Low'].shift(1)
+    df_daily['Sweep_Up'] = (df_daily['High'] > df_daily['Prev_High'])
+    df_daily['Sweep_Down'] = (df_daily['Low'] < df_daily['Prev_Low'])
 
-# Price chart with sweeps, RSI, prediction line
-st.subheader(f"{ticker} 1-Day Price Chart with Advanced Liquidity Sweeps and RSI")
+    sweep_up = df_daily[df_daily['Sweep_Up']].tail(5)
+    sweep_down = df_daily[df_daily['Sweep_Down']].tail(5)
 
-fig = go.Figure()
+    # Price chart with sweeps, RSI, prediction line
+    st.subheader(f"{ticker} 1-Day Price Chart with Advanced Liquidity Sweeps and RSI")
 
-fig.add_trace(go.Candlestick(
-    x=df_daily.index,
-    open=df_daily['Open'],
-    high=df_daily['High'],
-    low=df_daily['Low'],
-    close=df_daily['Close'],
-    name="Daily Candles"
-))
+    fig = go.Figure()
 
-fig.add_trace(go.Scatter(
-    x=sweep_up.index,
-    y=sweep_up['High'],
-    mode='markers',
-    marker=dict(color='green', size=12, symbol='triangle-up'),
-    name='Liquidity Sweep Up'
-))
+    fig.add_trace(go.Candlestick(
+        x=df_daily.index,
+        open=df_daily['Open'],
+        high=df_daily['High'],
+        low=df_daily['Low'],
+        close=df_daily['Close'],
+        name="Daily Candles"
+    ))
 
-fig.add_trace(go.Scatter(
-    x=sweep_down.index,
-    y=sweep_down['Low'],
-    mode='markers',
-    marker=dict(color='red', size=12, symbol='triangle-down'),
-    name='Liquidity Sweep Down'
-))
+    fig.add_trace(go.Scatter(
+        x=sweep_up.index,
+        y=sweep_up['High'],
+        mode='markers',
+        marker=dict(color='green', size=12, symbol='triangle-up'),
+        name='Liquidity Sweep Up'
+    ))
 
-future_x = [df_daily.index[-1] + pd.Timedelta(days=1)]
-future_y = [df_daily['Close'].iloc[-1] * (1.01 if next_prediction == 1 else 0.99)]
+    fig.add_trace(go.Scatter(
+        x=sweep_down.index,
+        y=sweep_down['Low'],
+        mode='markers',
+        marker=dict(color='red', size=12, symbol='triangle-down'),
+        name='Liquidity Sweep Down'
+    ))
 
-fig.add_trace(go.Scatter(
-    x=future_x,
-    y=future_y,
-    mode='lines+markers',
-    line=dict(color='blue', dash='dot'),
-    marker=dict(size=14),
-    name=f'Predicted Move ({movement})'
-))
+    future_x = [df_daily.index[-1] + pd.Timedelta(days=1)]
+    future_y = [df_daily['Close'].iloc[-1] * (1.01 if next_prediction == 1 else 0.99)]
 
-fig.update_layout(
-    xaxis_title="Date",
-    yaxis_title="Price",
-    xaxis_rangeslider_visible=False,
-    height=600
-)
+    fig.add_trace(go.Scatter(
+        x=future_x,
+        y=future_y,
+        mode='lines+markers',
+        line=dict(color='blue', dash='dot'),
+        marker=dict(size=14),
+        name=f'Predicted Move ({movement})'
+    ))
 
-st.plotly_chart(fig, use_container_width=True)
+    fig.update_layout(
+        xaxis_title="Date",
+        yaxis_title="Price",
+        xaxis_rangeslider_visible=False,
+        height=600
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
 
 # RSI Chart
 st.subheader("Relative Strength Index (RSI)")
