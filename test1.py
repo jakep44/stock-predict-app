@@ -22,8 +22,14 @@ def load_data(ticker, period, interval):
     return data
 
 df_raw = load_data(ticker, lookback_days, raw_interval)
-df_raw.index = pd.to_datetime(df_raw.index)
-df_raw.columns = [' '.join(col).strip() if isinstance(col, tuple) else col for col in df_raw.columns]
+
+# Print columns for debugging
+st.write("Raw Data Columns:", df_raw.columns.tolist())
+
+# Standardize columns if possible
+expected_cols = ['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']
+mapping = {col: col.split()[-1] for col in df_raw.columns if any(key in col for key in expected_cols)}
+df_raw.rename(columns=mapping, inplace=True)
 
 # Add features
 def add_features(df):
@@ -76,7 +82,11 @@ else:
     confidence = f"{pred_proba*100:.1f}% Confidence"
 
     # Liquidity sweeps based on intraday highs/lows
-    df_raw['Prev_High'] = df_raw['High'].shift(1)
+    high_col = next((col for col in df_raw.columns if 'High' in col), None)
+low_col = next((col for col in df_raw.columns if 'Low' in col), None)
+
+if not high_col or not low_col:
+    st.er
     df_raw['Prev_Low'] = df_raw['Low'].shift(1)
     df_raw['Sweep_Up'] = (df_raw['High'] > df_raw['Prev_High'])
     df_raw['Sweep_Down'] = (df_raw['Low'] < df_raw['Prev_Low'])
